@@ -6,7 +6,6 @@ from arcpy.sa import *
 arcpy.CheckOutExtension("Spatial")
 
 
-
 ag1_frac = arcpy.Raster("PBinary5min/ag1.tif")
 ag2_frac = arcpy.Raster("PBinary5min/ag2.tif")
 ag3_frac = arcpy.Raster("PBinary5min/ag3.tif")
