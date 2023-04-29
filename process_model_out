@@ -1,0 +1,609 @@
+## cn gridpool output
+## Nov 17 2020
+## read dlem biomeflux output
+
+library(raster)
+library(magrittr)
+library(rgdal)
+library(ncdf4)
+
+setwd("E:\\xyqin\\x\\cn\\region\\40\\tran\\gridpool_output\\")
+
+if(!exists("readDlemBin")) {
+  readDlemBin <- function(bin_file) {
+    bin_con <- file(bin_file, "rb")
+    data_nu <- readBin(bin_con, "double", n=292 * 693, size=4)
+    close(bin_con)
+    r <- matrix(data_nu, nrow=292, byrow=TRUE) %>%
+      raster(., xmn=-124.787502289, xmx=-67.0377332888, ymn=25.0875015259, ymx=49.4207375259, crs="+proj=longlat +datum=WGS84")
+    return(r)
+  }
+}
+
+readDlemClim <- function(in_file) {
+  s <- brick()
+  data_nu <- readBin(file(in_file, "rb"), "double", n=354 * 720 * 365, size=4)
+  for(day in 1:365) {
+    mat_day <- data_nu[(354 * 720 * (day - 1) + 1):(354 * 720 * day)]
+    mat_day <- matrix(mat_day, nrow=354, byrow=TRUE)
+    r_day <- raster(mat_day, xmn=-180, xmx=180, ymn=-88.5, ymx=88.5)
+    r_day[r_day < -1000] <- NA
+    s <- addLayer(s, r_day)
+  }
+  
+  return(s)
+}
+
+
+## read dlem gridpool output
+readDlemGridpool <- function(maskidx_file, dlem_gridpool_file) {
+  
+  ## read dlem gridpool using raw method
+  file_size <- file.info(dlem_gridpool_file)$size
+  raw <- readBin(dlem_gridpool_file, what="raw", n=file_size);
+  
+  nbr_of_records <- length(raw) %/% 22;
+  raw <- matrix(raw, nrow=22*4, byrow=FALSE)
+  
+  data_int1 <- lapply(1:2, FUN=function(var) {
+    ints <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="integer", size=4,
+                    n=nbr_of_records/4)
+    return(ints)
+  })
+  
+  data_float1 <- lapply(3, FUN=function(var) {
+    floats <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="double", size=4,
+                      n=nbr_of_records/4)
+    return(floats)
+  })
+  
+  gridpool_df1 <- data.frame(do.call(cbind, data_int1),do.call(cbind, data_float1))
+  
+  data_int2 <- lapply(4:6, FUN=function(var) {
+    ints <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="integer", size=4,
+                    n=nbr_of_records/4)
+    return(ints)
+  })
+  
+  data_float2 <- lapply(7:22, FUN=function(var) {
+    floats <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="double", size=4,
+                      n=nbr_of_records/4)
+    return(floats)
+  })
+  
+  gridpool_df2 <- data.frame(do.call(cbind, data_int2),do.call(cbind, data_float2))
+  gridpool_df <- data.frame(gridpool_df1,gridpool_df2)
+  
+  var_names <- c("Findex_auto", "Findex_input","Farea", "year", "month", "day", 
+                 "VegC_rec", "LitC_rec", "SoilC_rec", "CWDC_rec","LAIgrid_rec", "WoodagC_rec",
+                 "VegN_rec", "LitN_rec", "SoilN_rec", "CWDN_rec", "FL_fine_rec", "FL_coarse_rec",
+                 "FL_livewood_rec", "FL_liveherb_rec", "SoilW_rec", "SoilIce_rec")
+  
+  names(gridpool_df) <- var_names
+  rm(raw)
+  
+  ## read mask file
+  maskidx_r <- readDlemBin(maskidx_file)
+  
+  ## generate raster for a var at a day/mon/year
+  genVarRaster <- function(col) {
+    var_r <- maskidx_r
+    var_r[var_r >=0] <- 0
+    var_r[var_r < 0] <- NA
+    
+    ind <- which((maskidx_r[] %in% gridpool_df$Findex_input)==TRUE)
+    var_r[ind] <- gridpool_df[, col]
+    
+    return(var_r)
+  }
+  
+  gridpool_df_s <- lapply(1:ncol(gridpool_df), genVarRaster) %>% do.call(stack, .)
+  names(gridpool_df_s) <- var_names
+  
+  return(gridpool_df_s)
+}
+
+
+for (i in 1970:2018){
+  
+  gridpool_df_s=readDlemGridpool(maskidx_file="cn_mask_id.bin", dlem_gridpool_file=paste("yy",i,".dlem",sep = ""))
+  
+  writeRaster(gridpool_df_s$VegC_rec, paste("cn_grid_VegC_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)    
+  writeRaster(gridpool_df_s$LitC_rec, paste("cn_grid_LitC_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  writeRaster(gridpool_df_s$SoilC_rec, paste("cn_grid_SoilC_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  
+}
+
+
+
+
+
+
+
+
+## read dlem gridpool output
+readDlemGridpool <- function(maskidx_file, dlem_gridpool_file) {
+  
+  ## read dlem gridpool using raw method
+  file_size <- file.info(dlem_gridpool_file)$size
+  raw <- readBin(dlem_gridpool_file, what="raw", n=file_size);
+  
+  nbr_of_records <- length(raw) %/% 36;
+  raw <- matrix(raw, nrow=36*4, byrow=FALSE)
+  
+  data_int1 <- lapply(1:2, FUN=function(var) {
+    ints <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="integer", size=4,
+                    n=nbr_of_records/4)
+    return(ints)
+  })
+  
+  data_float1 <- lapply(3, FUN=function(var) {
+    floats <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="double", size=4,
+                      n=nbr_of_records/4)
+    return(floats)
+  })
+  
+  gridpool_df1 <- data.frame(do.call(cbind, data_int1),do.call(cbind, data_float1))
+  
+  data_int2 <- lapply(4:6, FUN=function(var) {
+    ints <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="integer", size=4,
+                    n=nbr_of_records/4)
+    return(ints)
+  })
+  
+  data_float2 <- lapply(7:36, FUN=function(var) {
+    floats <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="double", size=4,
+                      n=nbr_of_records/4)
+    return(floats)
+  })
+  
+  gridpool_df2 <- data.frame(do.call(cbind, data_int2),do.call(cbind, data_float2))
+  gridpool_df <- data.frame(gridpool_df1,gridpool_df2)
+  
+  var_names <- c("Findex_auto", "Findex_input","Farea", "year", "month", "day", 
+                 "VegC_rec", "fsecdf_rec", "fprimf_rec", "VegC_rec_secdf", "VegC_rec_primf", "LitC_rec", "LitC_rec_secdf", 
+                 "LitC_rec_primf", "SoilC_rec", "SoilC_rec_secdf", "SoilC_rec_primf",
+                 "CWDC_rec", "CWDC_rec_secdf", "CWDC_rec_primf", "LAIgrid_rec", 
+                 "LAIgrid_rec_secdf", "LAIgrid_rec_primf", "Agegrid_rec_secdf", "Agegrid_rec_primf", "WoodagC_rec",
+                 "VegN_rec", "LitN_rec", "SoilN_rec", "CWDN_rec", "FL_fine_rec", "FL_coarse_rec",
+                 "FL_livewood_rec", "FL_liveherb_rec", "SoilW_rec", "SoilIce_rec")
+  
+  names(gridpool_df) <- var_names
+  rm(raw)
+  
+  ## read mask file
+  maskidx_r <- readDlemBin(maskidx_file)
+  
+  ## generate raster for a var at a day/mon/year
+  genVarRaster <- function(col) {
+    var_r <- maskidx_r
+    var_r[var_r >=0] <- 0
+    var_r[var_r < 0] <- NA
+    
+    ind <- which((maskidx_r[] %in% gridpool_df$Findex_input)==TRUE)
+    var_r[ind] <- gridpool_df[, col]
+    
+    return(var_r)
+  }
+  
+  gridpool_df_s <- lapply(1:ncol(gridpool_df), genVarRaster) %>% do.call(stack, .)
+  names(gridpool_df_s) <- var_names
+  
+  return(gridpool_df_s)
+}
+
+
+out_path = "D:/xiaoyong/Auburn_2023_Spring/1SouthUS_carbon/"
+grid_pool_path = "S:/Xiaoyong/south_us/region/gridpool/"
+
+for (i in 1985:2018){
+  print(i)
+  gridpool_df_s=readDlemGridpool(maskidx_file="S:/Xiaoyong/01_input/mask/southeast_maskid.bin", dlem_gridpool_file=paste(grid_pool_path, "yy", as.character(i),".dlem",sep = ""))
+  #writeRaster(gridpool_df_s$SoilC_rec, paste(out_path, "SoilC_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)    
+  #writeRaster(gridpool_df_s$LitC_rec, paste(out_path, "LitC_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$CWDC_rec, paste(out_path, "CWDC_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$VegC_rec, paste(out_path, "VegC_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  writeRaster(gridpool_df_s$VegC_rec_primf, paste(out_path, "VegC_primf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  writeRaster(gridpool_df_s$VegC_rec_secdf, paste(out_path, "VegC_secdf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$SoilC_rec_primf, paste(out_path, "SoilC_primf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$SoilC_rec_secdf, paste(out_path, "SoilC_secdf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$LitC_rec_primf, paste(out_path, "LitC_primf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$LitC_rec_secdf, paste(out_path, "LitC_secdf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$CWDC_rec_primf, paste(out_path, "CWDC_primf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$CWDC_rec_secdf, paste(out_path, "CWDC_secdf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$Agegrid_rec_secdf, paste(out_path, "Age_secdf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$Agegrid_rec_primf, paste(out_path, "Age_primf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$LAIgrid_rec_secdf, paste(out_path, "LAI_secdf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$LAIgrid_rec_primf, paste(out_path, "LAI_primf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$fsecdf_rec, paste(out_path, "fsecdf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$fprimf_rec, paste(out_path, "fprimf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$LAIgrid_rec, paste(out_path, "LAI_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+}
+
+
+
+readDlemGridflux <- function(dlem_gridflux_file, maskidx_file) {
+  file_size <- file.info(dlem_gridflux_file)$size
+  raw <- readBin(dlem_gridflux_file, what="raw", n=file_size);
+  
+  nbr_of_records <- length(raw) %/% 91;
+  raw <-  matrix(raw, nrow=91*4, byrow=FALSE)
+  
+  data_int <- lapply(1:5, FUN=function(var) {
+    ints <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="integer", size=4,
+                    n=nbr_of_records/4)
+    return(ints)
+  })
+  
+  data_float <- lapply(6:91, FUN=function(var) {
+    floats <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="double", size=4,
+                      n=nbr_of_records/4)
+    return(floats)
+  })
+  
+  gridflux_df <- data.frame(do.call(cbind, data_int), do.call(cbind, data_float))
+  var_names <- c("Findex_auto", "Findex_input", "year", "month", "day", 
+                 "g_gpp", "g_gpp_secdf", "g_npp", "g_npp_secdf", "g_mr", "g_mr_secdf", "g_gr",
+                 "g_gr_secdf", "g_rh", "g_rh_secdf",
+                 "g_harvc", "g_harvn", "g_estabC", "g_estabN", "g_proddecC", "g_lucc_cvrtC",
+                 "g_lucc_cvrtN", "g_lucc_n2o", "g_crop_manage_C", "g_crop_manage_N", "g_manureC", "g_manureN", 
+                 "C_burntflux", "CH4_burntflux", "CO_burntflux", "CO2_burntflux", "NMHC_burntflux", 
+                 "C_burntmort", "g_litleachDOC", "g_leach_DOC",
+                 "g_leach_POC", "g_leach_DIC","g_ch4", "g_VOCisop", "g_VOCmono", "g_VOCovoc",
+                 "g_VOCorvoc", "g_VOCco","g_nuptake", "g_NMin", "g_leakN", "g_leachNH4", 
+                 "g_leachNO3", "g_litleachDON", "g_leachDON", "g_leachPON", 
+                 "g_denitrif", "g_nitrif", "g_nFix", "g_Ndep", "g_NFer", "g_n2o", 'g_n2o_nit', "g_no",
+                 "g_nh3Emisn", "N_burntflux", "N2O_burntflux", "NOy_burntflux", "NH3_burntflux",
+                 "N_burntmort","g_irrigation", "g_irrigation_withd", "g_evap", "g_evap_secdf",
+                 "g_infil", "g_infil_secdf", "g_trans", "g_trans_secdf", "g_qh", "g_gs","g_runoff_drain","g_runoff_surf",
+                 "g_stream_in", "g_stream_out","g_stream_et","g_stream_irrig",
+                 "g_stream_outDOC", "g_stream_outPOC","g_stream_outNH4",
+                 "g_stream_outNO3","g_stream_outDIN", "g_stream_outDON", "g_stream_outPON",
+                 "g_stream_outDIC", "g_stream_rh","g_stream_nremoval"
+  )
+  names(gridflux_df) <- var_names
+  rm(raw)
+  ## read mask file
+  maskidx_r <- readDlemBin(maskidx_file)
+  
+  ## generate raster for a var at a day/mon/year
+  genVarRaster <- function(col) {
+    var_r <- maskidx_r
+    var_r[var_r >=0] <- 0
+    var_r[var_r < 0] <- NA
+    
+    ind <- which((maskidx_r[] %in% gridflux_df$Findex_input)==TRUE)
+    var_r[ind] <- gridflux_df[, col]
+    
+    return(var_r)
+  }
+  
+  gridflux_df_s <- lapply(1:ncol(gridflux_df), genVarRaster) %>% do.call(stack, .)
+  names(gridflux_df_s) <- var_names
+  
+  return(gridflux_df_s)
+}
+
+
+
+out_path = "D:/xiaoyong/Auburn_2023_Spring/1SouthUS_carbon/"
+grid_flux_path = "S:/Xiaoyong/south_us/grid_fluxes_s1/"
+
+for (i in 1980:2018){
+  gridflux_df_s=readDlemGridflux(maskidx_file="S:/Xiaoyong/01_input/mask/southeast_maskid.bin", dlem_gridflux_file=paste(grid_flux_path, "yy",i,".dlem",sep = ""))
+  writeRaster(gridflux_df_s$g_gpp, paste(out_path, "4gpp/gpp_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)    
+  #writeRaster(gridpool_df_s$LitC_rec, paste(out_path, "2soilC/soilC_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$SoilC_rec, paste(out_path, "3litterC/litterC_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridpool_df_s$Agegrid_rec_secdf, paste(out_path, "4age_secdf/age_secdf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)    
+}
+
+
+
+readDlemGridflux <- function(dlem_gridflux_file, maskidx_file) {
+  file_size <- file.info(dlem_gridflux_file)$size
+  raw <- readBin(dlem_gridflux_file, what="raw", n=file_size);
+  
+  nbr_of_records <- length(raw) %/% 101;
+  raw <-  matrix(raw, nrow=101*4, byrow=FALSE)
+  
+  data_int <- lapply(1:5, FUN=function(var) {
+    ints <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="integer", size=4,
+                    n=nbr_of_records/4)
+    return(ints)
+  })
+  
+  data_float <- lapply(6:101, FUN=function(var) {
+    floats <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="double", size=4,
+                      n=nbr_of_records/4)
+    return(floats)
+  })
+  
+  gridflux_df <- data.frame(do.call(cbind, data_int), do.call(cbind, data_float))
+  var_names <- c("Findex_auto", "Findex_input", "year", "month", "day", 
+                 "g_gpp", "g_gpp_secdf", "g_gpp_primf", "g_npp", "g_npp_secdf", "g_npp_primf", "g_mr", "g_mr_secdf",
+                 "g_mr_primf","g_gr", "g_gr_secdf", "g_gr_primf", "g_rh", "g_rh_secdf", "g_rh_primf",
+                 "g_harvc", "g_harvn", "g_estabC", "g_estabN", "g_proddecC", "g_lucc_cvrtC", "g_defor_vegC", "g_defor_SoilC",
+                 "g_lucc_cvrtN","g_lucc_n2o", "g_crop_manage_C", "g_crop_manage_N", "g_manureC", "g_manureN", 
+                 "C_burntflux", "CH4_burntflux", "CO_burntflux", "CO2_burntflux", "NMHC_burntflux", 
+                 "C_burntmort", "g_litleachDOC", "g_leach_DOC",
+                 "g_leach_POC", "g_leach_DIC","g_ch4", "g_VOCisop", "g_VOCmono", "g_VOCovoc",
+                 "g_VOCorvoc", "g_VOCco","g_nuptake", "g_NMin", "g_leakN", "g_leachNH4", 
+                 "g_leachNO3", "g_litleachDON", "g_leachDON", "g_leachPON", 
+                 "g_denitrif", "g_nitrif", "g_nFix", "g_Ndep", "g_NFer", "g_n2o", 'g_n2o_nit', "g_no",
+                 "g_nh3Emisn", "N_burntflux", "N2O_burntflux", "NOy_burntflux", "NH3_burntflux",
+                 "N_burntmort","g_irrigation", "g_irrigation_withd", "g_evap", "g_evap_secdf", "g_evap_primf",
+                 "g_infil", "g_infil_secdf", "g_infil_primf", "g_trans", "g_trans_secdf", "g_trans_primf", 
+                 "g_qh", "g_gs","g_runoff_drain","g_runoff_surf",
+                 "g_stream_in", "g_stream_out","g_stream_et","g_stream_irrig",
+                 "g_stream_outDOC", "g_stream_outPOC","g_stream_outNH4",
+                 "g_stream_outNO3","g_stream_outDIN", "g_stream_outDON", "g_stream_outPON",
+                 "g_stream_outDIC", "g_stream_rh","g_stream_nremoval"
+  )
+  names(gridflux_df) <- var_names
+  rm(raw)
+  ## read mask file
+  maskidx_r <- readDlemBin(maskidx_file)
+  
+  ## generate raster for a var at a day/mon/year
+  genVarRaster <- function(col) {
+    var_r <- maskidx_r
+    var_r[var_r >=0] <- 0
+    var_r[var_r < 0] <- NA
+    
+    ind <- which((maskidx_r[] %in% gridflux_df$Findex_input)==TRUE)
+    var_r[ind] <- gridflux_df[, col]
+    
+    return(var_r)
+  }
+  
+  gridflux_df_s <- lapply(1:ncol(gridflux_df), genVarRaster) %>% do.call(stack, .)
+  names(gridflux_df_s) <- var_names
+  
+  return(gridflux_df_s)
+}
+
+
+
+out_path = "D:/xiaoyong/Auburn_2023_Spring/1SouthUS_carbon/"
+grid_flux_path = "S:/Xiaoyong/south_us/region/gridflux_lucc_v2/"
+
+for (i in 1985:2018){
+  print(i)
+  gridflux_df_s=readDlemGridflux(maskidx_file="S:/Xiaoyong/01_input/mask/southeast_maskid.bin", dlem_gridflux_file=paste(grid_flux_path, "yy", as.character(i),".dlem",sep = ""))
+  #writeRaster(gridflux_df_s$g_gpp_primf, paste(out_path, "g_gpp_primf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  #writeRaster(gridflux_df_s$g_gpp_secdf, paste(out_path, "g_gpp_secdf_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  
+  writeRaster(gridflux_df_s$g_defor_vegC, paste(out_path, "g_defor_vegC_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+  writeRaster(gridflux_df_s$g_defor_SoilC, paste(out_path, "g_defor_soilC_",i,".tif",sep = ""), format="GTiff",overwrite=TRUE)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+######  biome flux ############
+
+readDlemBiomeflux <- function(dlem_Biomeflux_file, maskidx_file) {
+  file_size <- file.info(dlem_Biomeflux_file)$size
+  raw <- readBin(dlem_Biomeflux_file, what="raw", n=file_size);
+  
+  nbr_of_records <- length(raw) %/% 65;
+  raw <-  matrix(raw, nrow=65*4, byrow=FALSE)
+  
+  data_int <- lapply(1:8, FUN=function(var) {
+    ints <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="integer", size=4,
+                    n=nbr_of_records/4)
+    return(ints)
+  })
+  
+  data_float <- lapply(9:65, FUN=function(var) {
+    floats <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="double", size=4,
+                      n=nbr_of_records/4)
+    return(floats)
+  })
+  
+  Biomeflux_df <- data.frame(do.call(cbind, data_int), do.call(cbind, data_float))
+  var_names <- c("Findex_auto", "Findex_input", "year", "month", "day",
+                 "ecoid","pft", "secd", "g_gpp", "g_npp", "g_mr", "g_gr", "g_rh",
+                 "g_harvc", "g_harvn", "g_estabC", "g_estabN",
+                 "crope_manage_C","crope_manage_N","g_manureC","g_manureN",
+                 "C_burntflux", "CH4_burntflux", "CO_burntflux", "CO2_burntflux", "NMHC_burntflux",
+                 "C_burntmort", "g_litleachDOC", "g_leach_DOC",
+                 "g_leach_POC", "g_leach_DIC","g_ch4", "g_VOCisop", "g_VOCmono", "g_VOCovoc",
+                 "g_VOCorvoc", "g_VOCco","g_nuptake", "g_NMin", "g_leakN", "g_leachNH4",
+                 "g_leachNO3", "g_litleachDON", "g_leachDON", "g_leachPON",
+                 "g_denitrif", "g_nitrif", "g_nFix", "g_Ndep", "g_NFer", "g_n2o", "g_no",
+                 "g_no_nit", "g_n2o_nit", "g_n2_nit_denit",
+                 "g_nh3Emisn", "N_burntflux", "N2O_burntflux", "NOy_burntflux", "NH3_burntflux",
+                 "N_burntmort","g_irrigation", "g_evap","g_intercp","g_trans")
+  
+  names(Biomeflux_df) <- var_names
+  rm(raw)
+  
+  maskidx_r <- readDlemBin(maskidx_file)
+  ## generate raster for a var at a day/mon/year
+  genVarRaster <- function(col) {
+    var_r <- maskidx_r
+    var_r[var_r >=0] <- 0
+    var_r[var_r < 0] <- NA
+    
+    ind <- which((maskidx_r[] %in% Biomeflux_df$Findex_input)==TRUE)
+    var_r[ind] <- Biomeflux_df[, col]
+    
+    return(var_r)
+  }
+  
+  Biomeflux_df_s <- lapply(1:ncol(Biomeflux_df), genVarRaster) %>% do.call(stack, .)
+  names(Biomeflux_df_s) <- var_names
+  
+  return(Biomeflux_df_s)
+}
+
+
+readDlemBiomeflux <- function(dlem_Biomeflux_file, maskidx_file) {
+  file_size <- file.info(dlem_Biomeflux_file)$size
+  raw <- readBin(dlem_Biomeflux_file, what="raw", n=file_size);
+  
+  nbr_of_records <- length(raw) %/% 65;
+  raw <-  matrix(raw, nrow=65*4, byrow=FALSE)
+  
+  data_int <- lapply(1:8, FUN=function(var) {
+    ints <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="integer", size=4,
+                    n=nbr_of_records/4)
+    return(ints)
+  })
+  
+  data_float <- lapply(9:65, FUN=function(var) {
+    floats <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="double", size=4,
+                      n=nbr_of_records/4)
+    return(floats)
+  })
+  
+  Biomeflux_df <- data.frame(do.call(cbind, data_int), do.call(cbind, data_float))
+  var_names <- c("Findex_auto", "Findex_input", "year", "month", "day",
+                 "ecoid","pft", "secd", "g_gpp", "g_npp", "g_mr", "g_gr", "g_rh",
+                 "g_harvc", "g_harvn", "g_estabC", "g_estabN",
+                 "crope_manage_C","crope_manage_N","g_manureC","g_manureN",
+                 "C_burntflux", "CH4_burntflux", "CO_burntflux", "CO2_burntflux", "NMHC_burntflux",
+                 "C_burntmort", "g_litleachDOC", "g_leach_DOC",
+                 "g_leach_POC", "g_leach_DIC","g_ch4", "g_VOCisop", "g_VOCmono", "g_VOCovoc",
+                 "g_VOCorvoc", "g_VOCco","g_nuptake", "g_NMin", "g_leakN", "g_leachNH4",
+                 "g_leachNO3", "g_litleachDON", "g_leachDON", "g_leachPON",
+                 "g_denitrif", "g_nitrif", "g_nFix", "g_Ndep", "g_NFer", "g_n2o", "g_no",
+                 "g_no_nit", "g_n2o_nit", "g_n2_nit_denit",
+                 "g_nh3Emisn", "N_burntflux", "N2O_burntflux", "NOy_burntflux", "NH3_burntflux",
+                 "N_burntmort","g_irrigation", "g_evap","g_intercp","g_trans")
+  
+  names(Biomeflux_df) <- var_names
+  rm(raw)
+  return(Biomeflux_df)
+}
+
+for (yr in 1990:2018){
+  biomeflux_file <- paste("S:/Xiaoyong/south_us/site/flux/biomeflux/yy", as.character(yr), ".dlem", sep="")
+  biomeflux_df <- readDlemBiomeflux(biomeflux_file, maskidx_file="S:/Xiaoyong/01_input/mask/ameriflux_maskid.bin")
+  tmp1 <- which(biomeflux_df$Findex_input==210)
+  tmp2 <- biomeflux_df[tmp1,]
+  tmp3 <- which((tmp2$secd == 0) & (tmp2$pft == 7))
+  print(tmp2$g_gpp[tmp3])
+}
+
+mon_days = c(31,28,31,30,31,30,31,31,30,31,30,31)
+for(yr in 2010:2010){
+  for(mid in 1:12){
+    for(did in 1:mon_days[mid]){
+      biomeflux_file <- paste("S:/Xiaoyong/south_us/site/flux/biomeflux/yy", as.character(yr), 'm', as.character(mid-1), 'd', as.character(did-1), ".dlem", sep="")
+      biomeflux_df <- readDlemBiomeflux(biomeflux_file, maskidx_file="S:/Xiaoyong/01_input/mask/ameriflux_maskid.bin")
+      tmp1 <- which(biomeflux_df$Findex_input==15)
+      tmp2 <- biomeflux_df[tmp1,]
+      tmp3 <- which((tmp2$secd == 0) & (tmp2$pft == 7))
+      print(tmp2$g_gpp[tmp3])
+    }
+  }
+}
+
+
+
+
+readDlemGridpool <- function(dlem_gridpool_file) {
+  ## read dlem gridpool using raw method
+  file_size <- file.info(dlem_gridpool_file)$size
+  raw <- readBin(dlem_gridpool_file, what="raw", n=file_size);
+  
+  nbr_of_records <- length(raw) %/% 36;
+  raw <- matrix(raw, nrow=36*4, byrow=FALSE)
+  
+  data_int1 <- lapply(1:2, FUN=function(var) {
+    ints <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="integer", size=4,
+                    n=nbr_of_records/4)
+    return(ints)
+  })
+  
+  data_float1 <- lapply(3, FUN=function(var) {
+    floats <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="double", size=4,
+                      n=nbr_of_records/4)
+    return(floats)
+  })
+  
+  gridpool_df1 <- data.frame(do.call(cbind, data_int1),do.call(cbind, data_float1))
+  
+  data_int2 <- lapply(4:6, FUN=function(var) {
+    ints <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="integer", size=4,
+                    n=nbr_of_records/4)
+    return(ints)
+  })
+  
+  data_float2 <- lapply(7:36, FUN=function(var) {
+    floats <- readBin(con=as.vector(raw[(4*(var - 1) + 1): (4*var), ]), what="double", size=4,
+                      n=nbr_of_records/4)
+    return(floats)
+  })
+  
+  gridpool_df2 <- data.frame(do.call(cbind, data_int2),do.call(cbind, data_float2))
+  gridpool_df <- data.frame(gridpool_df1,gridpool_df2)
+  
+  var_names <- c("Findex_auto", "Findex_input","Farea", "year", "month", "day", 
+                 "VegC_rec", "fsecdf_rec", "fprimf_rec", "VegC_rec_secdf", "VegC_rec_primf", "LitC_rec", "LitC_rec_secdf", 
+                 "LitC_rec_primf", "SoilC_rec", "SoilC_rec_secdf", "SoilC_rec_primf",
+                 "CWDC_rec", "CWDC_rec_secdf", "CWDC_rec_primf", "LAIgrid_rec", 
+                 "LAIgrid_rec_secdf", "LAIgrid_rec_primf", "Agegrid_rec_secdf", "Agegrid_rec_primf", "WoodagC_rec",
+                 "VegN_rec", "LitN_rec", "SoilN_rec", "CWDN_rec", "FL_fine_rec", "FL_coarse_rec",
+                 "FL_livewood_rec", "FL_liveherb_rec", "SoilW_rec", "SoilIce_rec")
+  
+  names(gridpool_df) <- var_names
+  rm(raw)
+  return(gridpool_df)
+}
+
+
+
+for (yr in 1901:1920){
+  Gridpool_file <- paste("S:/Xiaoyong/south_us/site/flux/gridpool/yy", as.character(yr), ".dlem", sep="")
+  Gridpool_df <- readDlemGridpool(Gridpool_file)
+  tmp1 <- which(Gridpool_df$Findex_input==85)
+  tmp2 <- Gridpool_df[tmp1,]
+  print(tmp2$VegC_rec_secdf)
+  #print(tmp2$VegC_rec_primf)
+  #print(tmp2$fsecdf_rec)
+  #print(tmp2$SoilC_rec_secdf)
+  #print(tmp2$LAIgrid_rec_secdf)
+  #print(tmp2$LAIgrid_rec_primf)
+  
+  #print(Gridpool_df$SoilC_rec_primf)
+  #print(Gridpool_df$SoilC_rec_secdf)
+  #print(tmp2$Agegrid_rec_secdf)
+  #print(Gridpool_df$Agegrid_rec_primf)
+  #print(Gridpool_df$VegC_rec_secdf)
+  #print(Gridpool_df$fsecdf_rec)
+  #print(Gridpool_df$fprimf_rec)
+  #print(Gridpool_df$VegC_rec_primf)
+  #print(Gridpool_df$VegC_rec_secdf)
+  #print(Gridpool_df$LitC_rec)
+  #print(Gridpool_df$VegC_rec)
+  #print(Gridpool_df$SoilC_rec)
+  #print(Gridpool_df$LAIgrid_rec_secdf)
+}
+
+for (yr in 1901:1950){
+  biomeflux_file <- paste("S:/Xiaoyong/south_us/site/flux/yy", as.character(yr), ".dlem", sep="")
+  biomeflux_df <- readDlemBiomeflux(biomeflux_file, maskidx_file="S:/Xiaoyong/01_input/mask/ameriflux_maskid.bin")
+  tmp1 <- which(biomeflux_df$Findex_input==85)
+  tmp2 <- biomeflux_df[tmp1,]
+  tmp3 <- which(tmp2$secd == 5)
+  print(tmp2$g_gpp[tmp3])
+}
+
+
+
+
+
+
+
+
