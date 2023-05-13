@@ -1,0 +1,36 @@
+library(terra)
+
+clm_path = "F:/CRU/4pre/crujra.v2.3.5d.pre."
+out_path = "F:/CRU/4pre_mon/crujra.v2.3.5d.pre."
+
+mb <- c(1, 32, 60, 91, 121, 152, 182, 213, 244, 274, 305, 335)
+me <- c(31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365)
+mdays <- c(31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
+
+cn_ext <- ext(70, 140, 15, 55)
+
+for(yr in 1901:2020){
+  clm <- rast(paste0(clm_path, as.character(yr), ".365d.noc.nc"))
+  for(m in 1:12){
+    clm_m <- clm[[mb[m]:me[m]]]
+    clm_m_cn <- crop(clm_m, cn_ext)
+    #clm_m_cn_avg <- mean(clm_m_cn)
+    clm_m_cn_avg <- sum(clm_m_cn)
+    out_name <- paste0(out_path, as.character(yr), '.m', as.character(m), ".tif")
+    writeRaster(clm_m_cn_avg, out_name, overwrite=TRUE)
+  }
+}
+
+clm_m_path = "F:/CRU/5dswrf_mon/crujra.v2.3.5d.dswrf."
+out_path <- "F:/CRU/0clm_his/"
+
+for(m in 1:12){
+  s <- brick()
+  for(yr in 1979:2018){
+    tmp_ras <- raster(paste0(clm_m_path, as.character(yr), '.m', as.character(m), '.tif'))
+    s <- addLayer(s, tmp_ras)
+  }
+  s_avg <- mean(s)
+  out_name <- paste0(out_path, "his_cru_dswrf_m", as.character(m), ".tif")
+  writeRaster(s_avg, out_name, format="GTiff", overwrite=TRUE)
+}
