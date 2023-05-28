@@ -73,7 +73,7 @@ for(var yid = 16; yid <= 40; yid++){
     scale: 500,
     maxPixels: 1e13,
     crs: 'EPSG:4326',
-    folder: '0NAFD',
+    folder: '0USFS',
     region: conus
   });
 }
