@@ -47,3 +47,33 @@ for(var yid=1; yid <= 20; yid++){
   });
   
 }
+
+// step 2 download NAFD annual disturbance
+var att_type = ee.Image("users/lixy16s/NAFD_Attribution_type");
+var att_year = ee.Image("users/lixy16s/NAFD_Attribution_year");
+
+var att_type_p = att_type.reproject(lc_prj, null, 30);
+var att_year_p = att_year.reproject(lc_prj, null, 30);
+
+for(var yid = 16; yid <= 40; yid++){
+  var att_year_tmp = att_year_p.eq(yid);
+  var yr = 1970 + yid;
+  var att_for_500 = att_year_tmp
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+    
+  Export.image.toDrive({
+    image: att_for_500,
+    description: 'nafd_forcov_' + yr,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: '0NAFD',
+    region: conus
+  });
+}
