@@ -177,3 +177,39 @@ for(var yr=2002; yr<=2021; yr++){
     region: conus
   });
 }
+
+// step 4 download USFS forest fast loss
+
+for(var yr=2002; yr<=2021; yr++){
+  var lc_tmp = forest_col
+    .filter(ee.Filter.and(
+      ee.Filter.eq('year', yr),
+      ee.Filter.eq('study_area', 'CONUS')
+    ))
+    .first();
+  
+  var lc_type = lc_tmp.select('Land_Use');
+  var lc_forest = lc_type.eq(3);
+  var lc_change = lc_tmp.select('Change');
+  var lc_dist = lc_change.eq(3);
+  var lc_forest_change = lc_forest.multiply(lc_dist);
+  
+  var lc_forest_change_500 = lc_forest_change
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+  
+  Export.image.toDrive({
+    image: lc_forest_change_500,
+    description: 'usfs_fast_loss_' + yr,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: '0USFS',
+    region: conus
+  });  
+}
