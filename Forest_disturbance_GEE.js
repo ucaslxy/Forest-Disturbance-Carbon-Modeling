@@ -213,3 +213,97 @@ for(var yr=2002; yr<=2021; yr++){
     region: conus
   });  
 }
+
+// step 6 download fire severity data
+var MTBS_severity = ee.ImageCollection("USFS/GTAC/MTBS/annual_burn_severity_mosaics/v1");
+
+for(var yr = 1984; yr <= 2022; yr++){
+  
+  var sdate = yr + '-01-01';
+  var edate = yr + '-12-31';
+  var mtbs_yr = MTBS_severity.filterDate(sdate, edate).select('Severity').toList(2);
+  var mtbs_yr_sub = mtbs_yr.get(1);
+  var mtbs_yr_conuso = ee.Image(mtbs_yr_sub).unmask(0);
+  var mtbs_yr_conus = mtbs_yr_conuso.reproject(lc_prj, null, 30);
+  
+  var mtbs_uburn_low = mtbs_yr_conus.eq(1);
+  var mtbs_low = mtbs_yr_conus.eq(2);
+  var mtbs_mod = mtbs_yr_conus.eq(3);
+  var mtbs_high = mtbs_yr_conus.eq(4);
+  
+  var mtbs_uburn_low_500 = mtbs_uburn_low
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+  
+  Export.image.toDrive({
+    image: mtbs_uburn_low_500,
+    description: 'mtbs_fire_ulow_' + yr,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: '0USFS',
+    region: conus
+  });
+  
+  var mtbs_low_500 = mtbs_low
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+  
+  Export.image.toDrive({
+    image: mtbs_low_500,
+    description: 'mtbs_fire_low_' + yr,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: '0USFS',
+    region: conus
+  });
+  
+  var mtbs_mod_500 = mtbs_mod
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+  
+  Export.image.toDrive({
+    image: mtbs_mod_500,
+    description: 'mtbs_fire_mod_' + yr,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: '0USFS',
+    region: conus
+  });
+  
+  var mtbs_high_500 = mtbs_high
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+  
+  Export.image.toDrive({
+    image: mtbs_high_500,
+    description: 'mtbs_fire_high_' + yr,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: '0USFS',
+    region: conus
+  });
+}
