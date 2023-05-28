@@ -77,3 +77,103 @@ for(var yid = 16; yid <= 40; yid++){
     region: conus
   });
 }
+
+// step 3 download USFS bark beetle and wind
+
+for(var yr=2002; yr<=2021; yr++){
+  var lc_tmp = forest_col
+    .filter(ee.Filter.and(
+      ee.Filter.eq('year', yr),
+      ee.Filter.eq('study_area', 'CONUS')
+    ))
+    .first();
+  
+  var lc_type = lc_tmp.select('Land_Use');
+  var lc_forest = lc_type.eq(3);
+  var lc_change = lc_tmp.select('Change');
+  var lc_dist = lc_change.eq(3);
+  var lc_forest_change = lc_forest.multiply(lc_dist);
+  
+  var sdate = yr + '-01-01';
+  var edate = yr + '-12-31';
+  var mtbs_yr = MTBS_severity.filterDate(sdate, edate).select('Severity').toList(2);
+  var mtbs_yr_sub = mtbs_yr.get(1);
+  var mtbs_yr_conus = ee.Image(mtbs_yr_sub).unmask(0);
+  var mtbs_data = mtbs_yr_conus.expression(
+    "(b('Severity') == 1) ? 1" +
+      ": (b('Severity') == 2) ? 1" +
+        ": (b('Severity') == 3) ? 1" +
+          ": (b('Severity') == 4) ? 1" +
+          ": 0");
+  var mtbs_data_m = mtbs_data.reproject(lc_prj, null, 30);
+  var non_fire = mtbs_data_m.eq(0);
+  // bark beetles
+  var ads_yr = ads_col.filter(ee.Filter.eq('SURVEY_YEA', yr));
+  var ads_bark1 = ads_yr.filter(ee.Filter.gte('DCA_CODE', 11000));
+  var ads_bark = ads_bark1.filter(ee.Filter.lte('DCA_CODE', 11900));
+  
+  var bark_ras = ads_bark.reduceToImage({
+    properties: ['DCA_CODE'],
+    reducer: ee.Reducer.first()
+  });
+  
+  var bark_ras_prj = bark_ras.reproject(lc_prj, null, 30);
+  var bark_ras_unmask = bark_ras_prj.unmask(0);
+  var bark_hdist = bark_ras_unmask.gt(0);
+  var bark_hdist_nofire = bark_hdist.multiply(non_fire);
+  var lc_forest_bark = lc_forest_change.multiply(bark_hdist_nofire);
+  
+  //wind
+  
+  var ads_yr = ads_col.filter(ee.Filter.eq('SURVEY_YEA', yr));
+  var ads_wind = ads_yr.filter(ee.Filter.lt('DCA_CODE', 50013));
+  
+  var wind_ras = ads_wind.reduceToImage({
+    properties: ['DCA_CODE'],
+    reducer: ee.Reducer.first()
+  });
+  
+  var wind_ras_prj = wind_ras.reproject(lc_prj, null, 30);
+  var wind_ras_unmask = wind_ras_prj.unmask(0);
+  var wind_hdist = wind_ras_unmask.gt(0);
+  var wind_hdist_nofire = wind_hdist.multiply(non_fire);
+  var lc_forest_wind = lc_forest_change.multiply(wind_hdist_nofire);
+  
+  var lc_forest_bark_500 = lc_forest_bark
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+  
+  Export.image.toDrive({
+    image: lc_forest_bark_500,
+    description: 'usfs_forest_bark_' + yr,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: '0NAFD',
+    region: conus
+  });
+  
+  var lc_forest_wind_500 = lc_forest_wind
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+  
+  Export.image.toDrive({
+    image: lc_forest_wind_500,
+    description: 'usfs_forest_wind_' + yr,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: '0NAFD',
+    region: conus
+  });
+}
