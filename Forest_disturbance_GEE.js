@@ -307,3 +307,39 @@ for(var yr = 1984; yr <= 2022; yr++){
     region: conus
   });
 }
+
+
+var mtbs_burn = ee.FeatureCollection("users/lixy16s/mtbs_bound_gee");
+
+for(var yr=1984;yr <= 2021; yr++){
+  var mon = 12;
+  var mtbs_yr = mtbs_burn.filter(ee.Filter.eq('year', yr));
+  var mtbs_mon = mtbs_burn.filter(ee.Filter.eq('mon', mon));
+  var mtbs_mon_ras = mtbs_mon.reduceToImage({
+    properties: ['mon'],
+    reducer: ee.Reducer.first()
+  });
+  var mtbs_mon_rasp = mtbs_mon_ras.reproject(lc_prj, null, 30);
+  var mtbs_mon_rasp_unmask = mtbs_mon_rasp.unmask(0);
+  var mtbs_fire_mon = mtbs_mon_rasp_unmask.gt(0);
+  
+  var mtbs_fire_mon_500 = mtbs_fire_mon
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+  
+  Export.image.toDrive({
+    image: mtbs_fire_mon_500,
+    description: 'mtbs_fire_' + yr + "_" + mon,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: '0USFS',
+    region: conus
+  });
+  
+}
