@@ -343,3 +343,81 @@ for(var yr=1984;yr <= 2021; yr++){
   });
   
 }
+
+
+
+var att_type = ee.Image("users/lixy16s/NAFD_Attribution_type");
+var att_year = ee.Image("users/lixy16s/NAFD_Attribution_year");
+
+var att_type_p = att_type.reproject(lc_prj, null, 30);
+var att_year_p = att_year.reproject(lc_prj, null, 30);
+
+var ini_yr = 1970;
+for(var yid = 16; yid <= 40; yid++){
+  var yr = ini_yr + yid; 
+  var sdate = yr + '-01-01';
+  var edate = yr + '-12-31';
+  var yr_dist = att_year_p.eq(yid);
+  
+  var type_dist_stress = att_type_p.eq(104).multiply(yr_dist);  // 104 fire
+  var type_dist_wind = att_type_p.eq(105).multiply(yr_dist);  // 105 wind
+  var type_dist_conv = att_type_p.eq(107).multiply(yr_dist);  // 107 conversion
+  
+  
+  var type_dist_stress_500 = type_dist_stress
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+  
+  Export.image.toDrive({
+    image: type_dist_stress_500,
+    description: 'nafd_att_stress_' + yr,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: '0USFS',
+    region: conus
+  });
+  
+  var type_dist_wind_500 = type_dist_wind
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+    
+  Export.image.toDrive({
+    image: type_dist_wind_500,
+    description: 'nafd_att_wind_' + yr,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: 'OUSFS',
+    region: conus
+  });
+  
+  var type_dist_conv_500 = type_dist_conv
+    .reduceResolution({
+      reducer: ee.Reducer.mean(),
+      maxPixels: 65536
+    })
+    .reproject({
+      crs: modlc_projection
+    });
+  
+  Export.image.toDrive({
+    image: type_dist_conv_500,
+    description: 'nafd_att_conv_' + yr,
+    scale: 500,
+    maxPixels: 1e13,
+    crs: 'EPSG:4326',
+    folder: 'OUSFS',
+    region: conus
+  });
+}
