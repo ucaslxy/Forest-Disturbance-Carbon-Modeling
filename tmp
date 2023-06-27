@@ -1,0 +1,125 @@
+library(segmented)
+
+data <- read.csv("E:/006_SEUS_data/7stat/forest_loss_usfs.csv")
+data_df <- as.data.frame(data)
+data_df_r <- data_df[1:35, 1:2]
+data_df_p1 <- data_df[1:14, 1:2]
+data_df_p2 <- data_df[15:35, 1:2]
+
+colnames(data_df_r) <- c('year', 'loss')
+colnames(data_df_p1) <- c('year', 'loss')
+colnames(data_df_p2) <- c('year', 'loss')
+
+lm_fit <- lm(loss ~ year, data_df_r)
+lm_fit_p1 <- lm(loss ~ year, data_df_p1)
+lm_fit_p2 <- lm(loss ~ year, data_df_p2)
+
+piecewise_fit <- segmented(lm_fit, seg.Z = ~year, psi=2000)
+summary(piecewise_fit)
+summary(lm_fit_p1)
+summary(lm_fit_p2)
+
+mean(data_df_p2[1:21, 2])
+sd(data_df_p2[1:21, 2])
+
+
+
+# linear analysis
+
+library(raster)
+
+land_mask <- raster("E:/006_SEUS_data/1basedata/seus_mask_5min_land_null.tif")
+mask_ma <- as.matrix(land_mask)
+
+for_loss_path <- "E:/006_SEUS_data/2usfs/usfs_lucc_5min_null/usfs_fast_loss_"
+for_loss <- array(0, dim = c(292, 693, 35))
+
+for(yr in 1986:2020){
+  for_loss_tmp <- raster(paste0(for_loss_path, as.character(yr), ".tif"))
+  for_loss_tmp_ma <- as.matrix(for_loss_tmp)
+  for_loss[1:292,1:693, (yr-1985)] <- for_loss_tmp_ma
+}
+
+loss_slope <- matrix(0, nrow = 292, ncol = 693)
+loss_p <- matrix(0, nrow = 292, ncol = 693)
+
+year <- c(1986: 2020)
+df <- as.data.frame(matrix(nrow = 35, ncol = 2))
+df[,1] <- year
+
+colnames(df) <- c('year', 'EI')
+
+for(r in 1:292){
+  for(c in 1:693){
+    if(mask_ma[r,c] == 1){
+      df[,2] <- for_loss[r,c,]
+      lm_fit <- lm(EI ~ year, df)
+      sm <- summary(lm_fit)
+      loss_slope[r, c] <- sm$coefficients[2]
+      loss_p[r, c] <- sm$coefficients[8]
+    }
+  }
+}
+
+
+loss_sloep_ras <- raster(loss_slope, xmn = -124.787502289, xmx = -67.0375045988, ymn = 25.0875015259, ymx = 49.4208338859)
+loss_sloep_ras[land_mask == 0] <- NA
+out_name <- "E:/006_SEUS_data/9mxd/data/trend/loss_slope.tif"
+writeRaster(loss_sloep_ras, out_name, format = "GTiff", overwrite = TRUE)
+
+loss_p_ras <- raster(loss_p, xmn = -124.787502289, xmx = -67.0375045988, ymn = 25.0875015259, ymx = 49.4208338859)
+loss_p_ras[land_mask == 0] <- NA
+out_name <- "E:/006_SEUS_data/9mxd/data/trend/loss_p.tif"
+writeRaster(loss_p_ras, out_name, format = "GTiff", overwrite = TRUE)
+
+# total cell num
+total_cell <- sum(mask_ma)
+# total_cell = 18932
+
+# sig. change cell
+loss_p_sig <- loss_p_ras
+loss_p_sig[loss_p_sig < 0.05] <- -1
+loss_p_sig[loss_p_sig >= 0.05] <- 0
+loss_p_sig_ma <- as.matrix(loss_p_sig)
+total_cell_sig <- sum(loss_p_sig_ma, na.rm=TRUE)
+
+# total_cell_sig = 5180
+
+# loss increase
+loss_slope_gt0 <- loss_sloep_ras
+loss_slope_gt0[loss_slope_gt0 > 0] <- 1
+loss_slope_gt0[loss_slope_gt0 < 0] <- 0
+loss_slope_gt0_sig <- loss_slope_gt0 * loss_p_sig
+loss_slope_gt0_sig_ma <- as.matrix(loss_slope_gt0_sig)
+total_cell_in_sig <- sum(loss_slope_gt0_sig_ma, na.rm = TRUE)
+
+# total_cell_in_sig = 4783
+
+# loss increase
+loss_slope_lt0 <- loss_sloep_ras
+loss_slope_lt0[loss_slope_lt0 > 0] <- 0
+loss_slope_lt0[loss_slope_lt0 < 0] <- 1
+loss_slope_lt0_sig <- loss_slope_lt0 * loss_p_sig
+loss_slope_lt0_sig_ma <- as.matrix(loss_slope_lt0_sig)
+total_cell_de_sig <- sum(loss_slope_lt0_sig_ma, na.rm = TRUE)
+
+# total_cell_in_sig = 397
+
+loss_slope_gt0 <- loss_sloep_ras
+loss_slope_gt0[loss_slope_gt0 > 0] <- 1
+loss_slope_gt0[loss_slope_gt0 < 0] <- 0
+loss_slope_gt0_ma <- as.matrix(loss_slope_gt0)
+total_cell_in <- sum(loss_slope_gt0_ma, na.rm = TRUE)
+
+# increase cell 14760
+
+loss_slope_lt0 <- loss_sloep_ras
+loss_slope_lt0[loss_slope_lt0 > 0] <- 0
+loss_slope_lt0[loss_slope_lt0 < 0] <- 1
+loss_slope_lt0_ma <- as.matrix(loss_slope_lt0)
+total_cell_de <- sum(loss_slope_lt0_ma, na.rm = TRUE)
+
+# increase cell 4145
+
+
+
